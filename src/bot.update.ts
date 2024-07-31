@@ -1,13 +1,15 @@
-import { Start, Update } from 'nestjs-telegraf';
-import { Context } from 'telegraf';
+import { Context } from 'libs/interfaces/context.interface';
+import { Ctx, Start, Update } from 'nestjs-telegraf';
 
 @Update()
 export class BotUpdate {
-  constructor() {}
-
   @Start()
-  startBot(ctx: Context) {
-    console.log(ctx);
-    ctx.reply("Hi, I'm VEL's bot 😉");
+  async startBot(@Ctx() ctx: Context) {
+    const userId = ctx.from.id;
+    if ([123].includes(userId)) {
+      await ctx.scene.enter('admin'); // TODO: implement scene in ctx
+    } else {
+      await ctx.scene.enter('home');
+    }
   }
 }

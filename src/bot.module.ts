@@ -1,18 +1,13 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { BotUpdate } from 'bot.update';
+import { telegrafOptions } from 'config/telegram.config';
 import { TelegrafModule } from 'nestjs-telegraf';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
-    TelegrafModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        token: configService.get<string>('TELEGRAM_BOT_TOKEN'),
-      }),
-      inject: [ConfigService],
-    }),
+    TelegrafModule.forRootAsync(telegrafOptions()),
   ],
   providers: [BotUpdate],
 })
