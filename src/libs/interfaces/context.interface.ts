@@ -1,6 +1,3 @@
-import { Context as TelegrafContext } from 'telegraf';
-import { SceneContextScene } from 'telegraf/typings/scenes';
+import { SceneContext } from 'telegraf/typings/scenes';
 
-export interface Context extends TelegrafContext {
-  scene: SceneContextScene;
-}
+export interface Context extends SceneContext {}

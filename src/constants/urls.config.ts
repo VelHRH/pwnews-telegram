@@ -1,14 +1,20 @@
-export const UrlButtons = {
-  WEBSITE: {
+export enum UrlEntity {
+  WEBSITE = 'WEBSITE',
+  CHANNEL = 'CHANNEL',
+  CHAT = 'CHAT',
+}
+
+export const UrlConfig = {
+  [UrlEntity.WEBSITE]: {
     name: 'Сайт',
     url: 'https://pwnews.net/news/',
   },
-  CHANNEL: {
+  [UrlEntity.CHANNEL]: {
     name: 'Канал',
     url: 'https://t.me/pwnewsnet',
   },
-  CHAT: {
+  [UrlEntity.CHAT]: {
     name: 'Чат',
     url: 'https://t.me/+y6U7hiFWWRtiY2Fi',
   },
-} as const;
+};

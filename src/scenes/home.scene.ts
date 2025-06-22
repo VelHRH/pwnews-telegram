@@ -1,4 +1,4 @@
-import { UrlButtons } from 'config/constants/url.buttons';
+import { UrlConfig } from '$/constants/urls.config';
 import { Ctx, Scene, SceneEnter } from 'nestjs-telegraf';
 import { Context, Markup } from 'telegraf';
 
@@ -6,7 +6,7 @@ import { Context, Markup } from 'telegraf';
 export class HomeScene {
   @SceneEnter()
   async enterScene(@Ctx() ctx: Context) {
-    const replyKeyboard = Object.values(UrlButtons).map((button) =>
+    const replyKeyboard = Object.values(UrlConfig).map((button) =>
       Markup.button.url(button.name, button.url),
     );
     await ctx.reply(
