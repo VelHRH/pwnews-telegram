@@ -1,17 +1,19 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { BotUpdate } from './bot.update';
-import { telegrafOptions } from './constants/telegraf.config';
+import { ConfigModule } from '@nestjs/config';
 import { TelegrafModule } from 'nestjs-telegraf';
-import { HomeScene } from './scenes/home.scene';
-import { AdminScene } from './scenes/admin.scene';
-import { session } from 'telegraf';
+import { BotUpdate } from './bot.update';
+import { CreatePostScene } from './scenes/create-post.scene';
+import { telegrafOptions } from './constants/telegraf.config';
+import { NewsModule } from './modules/news/news.module';
+import { CommonModule } from './modules/common/common.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot(),
     TelegrafModule.forRootAsync(telegrafOptions()),
+    NewsModule,
+    CommonModule,
   ],
-  providers: [BotUpdate, HomeScene, AdminScene],
+  providers: [BotUpdate, CreatePostScene],
 })
 export class BotModule {}

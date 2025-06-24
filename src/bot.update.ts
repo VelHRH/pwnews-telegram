@@ -1,19 +1,16 @@
-import { Context } from 'libs/interfaces/context.interface';
-import { Ctx, Start, Update } from 'nestjs-telegraf';
+import { Start, Update, Ctx } from 'nestjs-telegraf';
+import { Context } from './libs/interfaces/context.interface';
+import { KeyboardService } from './modules/common/services/keyboard.service';
 
 @Update()
 export class BotUpdate {
-  @Start()
-  async startBot(@Ctx() ctx: Context) {
-    const userId = ctx.from.id;
-    console.log('User ID:', userId);
+  constructor(private readonly keyboardService: KeyboardService) {}
 
-    if ([123].includes(userId)) {
-      await ctx.reply('Добро пожаловать в панель администратора!');
-      await ctx.scene.enter('admin');
-    } else {
-      await ctx.reply('Привет! Добро пожаловать в бота.');
-      await ctx.scene.enter('home');
-    }
+  @Start()
+  async onStart(@Ctx() ctx: Context) {
+    await ctx.reply(
+      'Добро пожаловать! 👋',
+      this.keyboardService.getMainKeyboard(),
+    );
   }
 }
