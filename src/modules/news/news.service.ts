@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ConfigKeys } from '$/constants/app.constants';
-import { WeeklyShow } from '$/modules/news/news.config';
 import { Context } from '$/libs/interfaces/context.interface';
 import { Markup } from 'telegraf';
 import { KeyboardService } from '../common/services/keyboard.service';
+import { WeeklyShow } from './constants/weekly-shows';
+import { reviewersNames } from './constants/reviewers';
 
 interface PendingPublication {
   text: string;
@@ -21,10 +22,29 @@ interface PendingPublication {
   };
 }
 
+interface PendingPPVPublication {
+  cleanedText: string;
+  articleUrl: string;
+  videoUrl: string;
+  imageUrl: string;
+  inlineKeyboard: {
+    inline_keyboard: Array<
+      Array<{
+        text: string;
+        url: string;
+      }>
+    >;
+  };
+}
+
 @Injectable()
 export class NewsService {
   private readonly channelId: string;
   private readonly pendingPublications = new Map<number, PendingPublication>();
+  private readonly pendingPPVPublications = new Map<
+    number,
+    PendingPPVPublication
+  >();
 
   constructor(
     private readonly configService: ConfigService,
@@ -60,10 +80,27 @@ export class NewsService {
 
     const textMessage = textMessageMatch
       ? textMessageMatch[1]
+          .split('</p>')[0]
+          .replace(/<[^>]*>/g, '')
           .replace(/<p.*?>/g, '')
           .split('<')[0]
           .trim()
       : '';
+
+    const filteredTextMessage = textMessage
+      .split(/[.!?]+/)
+      .filter((sentence) => {
+        const cleanSentence = sentence.trim().toLowerCase();
+        return !reviewersNames.some((reviewer) =>
+          cleanSentence.includes(reviewer.toLowerCase()),
+        );
+      })
+      .join('. ')
+      .trim();
+
+    const finalTextMessage = filteredTextMessage.endsWith('.')
+      ? filteredTextMessage
+      : filteredTextMessage + '.';
 
     const postButtonTitle =
       'Читать обзор ' +
@@ -75,66 +112,230 @@ export class NewsService {
       inline_keyboard: [[{ text: postButtonTitle.trim().toUpperCase(), url }]],
     };
 
-    if (imageMatch && imageMatch[1]) {
-      const imageUrl = imageMatch[1].startsWith('http')
-        ? imageMatch[1]
-        : `https://pwnews.net${imageMatch[1]}`;
-
-      await ctx.telegram.sendPhoto(this.channelId, imageUrl, {
-        caption: `${textMessage} \n\n${url}`,
-        reply_markup: inlineKeyboard,
-      });
-    } else {
-      await ctx.telegram.sendMessage(
-        this.channelId,
-        `${textMessage} \n\n${url}`,
-        {
-          reply_markup: inlineKeyboard,
-        },
+    if (!imageMatch?.[1]) {
+      await ctx.reply(
+        'Не удалось получить изображение для обзора',
+        this.keyboardService.getMainKeyboard(),
       );
+      return;
     }
+    const imageUrl = imageMatch[1].startsWith('http')
+      ? imageMatch[1]
+      : `https://pwnews.net${imageMatch[1]}`;
+
+    await ctx.telegram.sendPhoto(this.channelId, imageUrl, {
+      caption: `${finalTextMessage} \n\n${url}`,
+      reply_markup: inlineKeyboard,
+    });
   }
 
-  async publishPPVResults(ctx: Context): Promise<void> {
+  async publishPPVResults(ctx: Context, customUrl?: string): Promise<void> {
     if (!this.channelId) {
       await ctx.reply('Ошибка: ID канала не настроен');
       return;
     }
 
-    const response = await fetch('https://pwnews.net/news/1-0-21');
-    const html = await response.text();
+    let ppvData: { cleanedText: string; articleUrl: string; imageUrl: string };
 
-    const divMatch = html.match(
-      /<div[^>]*class="[^"]*vidnovosnew-title[^"]*"[^>]*>(.*?)<\/div>/s,
-    );
+    if (customUrl) {
+      // Extract data from custom URL
+      const extractedData = await this.extractPPVDataFromUrl(customUrl);
+      if (!extractedData) {
+        await ctx.reply('Не удалось извлечь данные из предоставленной ссылки');
+        return;
+      }
+      ppvData = extractedData;
+    } else {
+      // Use default extraction method
+      const defaultData = await this.extractPPVData();
+      if (!defaultData) {
+        await ctx.reply('Не удалось извлечь данные о PPV');
+        return;
+      }
+      ppvData = defaultData;
+    }
 
-    if (!divMatch) {
-      await ctx.reply('Не удалось найти div с классом "vidnovosnew-title"');
+    const { cleanedText, articleUrl, imageUrl } = ppvData;
+
+    const responseVideo = await fetch('https://pwnews.net/blog/');
+    const htmlVideo = await responseVideo.text();
+
+    // Find the first img tag that contains cleanedText and get its wrapping a tag
+    const imgRegex =
+      /<a[^>]*href="([^"]*)"[^>]*>\s*<img[^>]*alt="([^"]*)"[^>]*>/gs;
+    let videoUrl = '';
+    let match;
+
+    while ((match = imgRegex.exec(htmlVideo)) !== null) {
+      const hrefUrl = match[1];
+      const altText = match[2];
+
+      // Check if the alt attribute contains our cleanedText
+      if (altText.includes(cleanedText)) {
+        videoUrl = hrefUrl.startsWith('http')
+          ? hrefUrl
+          : `https://pwnews.net${hrefUrl}`;
+        break;
+      }
+    }
+
+    if (!videoUrl) {
+      await ctx.reply('Не удалось найти видео для данного эфира');
       return;
     }
 
-    const aTagMatch = divMatch[1].match(/<a[^>]*>(.*?)<\/a>/s);
+    const inlineKeyboard = {
+      inline_keyboard: [
+        [
+          { text: 'Результаты'.toUpperCase(), url: articleUrl },
+          { text: 'Смотреть'.toUpperCase(), url: videoUrl },
+        ],
+      ],
+    };
 
-    if (!aTagMatch) {
-      await ctx.reply('Не удалось найти a тег внутри div');
-      return;
+    // Show preview of the post to the user
+    await ctx.sendPhoto(imageUrl.replace(/\/s/g, '/'), {
+      caption: `Результаты ${cleanedText} + запись шоу`,
+      reply_markup: inlineKeyboard,
+    });
+
+    // Store the publication data for later use
+    if (ctx.from?.id) {
+      this.pendingPPVPublications.set(ctx.from.id, {
+        cleanedText,
+        articleUrl,
+        videoUrl,
+        imageUrl,
+        inlineKeyboard,
+      });
     }
 
-    let cleanedText = aTagMatch[1]
-      .replace(/<[^>]*>/g, '') // Remove HTML tags
-      .trim();
-
-    cleanedText = cleanedText.replace(/Результаты\s+(WWE|AEW)/gi, '');
-
-    const currentYear = new Date().getFullYear();
-    cleanedText = cleanedText.replace(
-      new RegExp(`\\b${currentYear}\\b`, 'g'),
-      '',
+    await ctx.reply(
+      'Выберете время публикации или вставьте ссылку на другое шоу',
+      Markup.keyboard([
+        ['Сейчас', 'В 7:30'],
+        ['В 8:30', 'В 9:00'],
+      ]).resize(),
     );
+  }
 
-    cleanedText = cleanedText.replace(/\s+/g, ' ').trim();
+  private async extractPPVData(): Promise<{
+    cleanedText: string;
+    articleUrl: string;
+    imageUrl: string;
+  } | null> {
+    try {
+      const response = await fetch('https://pwnews.net/news/1-0-21');
+      const html = await response.text();
 
-    await ctx.reply(cleanedText);
+      const divMatch = html.match(
+        /<div[^>]*class="[^"]*vidnovosnew-title[^"]*"[^>]*>(.*?)<\/div>/s,
+      );
+
+      if (!divMatch) {
+        return null;
+      }
+
+      const divIndex = html.indexOf(divMatch[0]);
+      const htmlBeforeDiv = html.substring(0, divIndex);
+      const srcMatches = htmlBeforeDiv.match(/src="([^"]+)"/g);
+
+      if (!srcMatches?.length) {
+        return null;
+      }
+
+      const aTagMatch = divMatch[1].match(/<a[^>]*>(.*?)<\/a>/s);
+
+      if (!aTagMatch) {
+        return null;
+      }
+
+      // Extract href from the a tag
+      const hrefMatch = divMatch[1].match(/<a[^>]*href="([^"]*)"[^>]*>/);
+
+      if (!hrefMatch) {
+        return null;
+      }
+
+      const articleUrl = hrefMatch[1].startsWith('http')
+        ? hrefMatch[1]
+        : `https://pwnews.net${hrefMatch[1]}`;
+
+      let cleanedText = aTagMatch[1]
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .trim();
+
+      cleanedText = cleanedText.replace(/Результаты\s+(WWE|AEW)/gi, '');
+
+      const currentYear = new Date().getFullYear();
+      cleanedText = cleanedText.replace(
+        new RegExp(`\\b${currentYear}\\b`, 'g'),
+        '',
+      );
+
+      cleanedText = cleanedText.replace(/\s+/g, ' ').trim();
+
+      const lastSrcMatch = srcMatches[srcMatches.length - 1];
+      const imageUrl = `https://pwnews.net${lastSrcMatch.match(/src="([^"]+)"/)[1]}`;
+
+      return {
+        cleanedText,
+        articleUrl,
+        imageUrl,
+      };
+    } catch (error) {
+      console.error('Error extracting PPV data:', error);
+      return null;
+    }
+  }
+
+  private async extractPPVDataFromUrl(url: string): Promise<{
+    cleanedText: string;
+    articleUrl: string;
+    imageUrl: string;
+  } | null> {
+    try {
+      const response = await fetch(url);
+      const html = await response.text();
+
+      // Find the first img tag
+      const imgMatch = html.match(
+        /<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/,
+      );
+
+      if (!imgMatch) {
+        return null;
+      }
+
+      const srcUrl = imgMatch[1];
+      const altText = imgMatch[2];
+
+      const imageUrl = srcUrl.startsWith('http')
+        ? srcUrl
+        : `https://pwnews.net${srcUrl}`;
+
+      let cleanedText = altText.trim();
+
+      // Apply the same cleaning logic as extractPPVData
+      cleanedText = cleanedText.replace(/Результаты\s+(WWE|AEW)/gi, '');
+
+      const currentYear = new Date().getFullYear();
+      cleanedText = cleanedText.replace(
+        new RegExp(`\\b${currentYear}\\b`, 'g'),
+        '',
+      );
+
+      cleanedText = cleanedText.replace(/\s+/g, ' ').trim();
+
+      return {
+        cleanedText,
+        articleUrl: url,
+        imageUrl,
+      };
+    } catch (error) {
+      console.error('Error extracting PPV data from URL:', error);
+      return null;
+    }
   }
 
   async publishWeeklyResults(ctx: Context): Promise<void> {
@@ -285,5 +486,106 @@ export class NewsService {
     if (userId) {
       this.pendingPublications.delete(userId);
     }
+  }
+
+  async handlePPVTimeSelection(
+    ctx: Context,
+    timeChoice: string,
+  ): Promise<void> {
+    const userId = ctx.from?.id;
+
+    if (!userId || !this.pendingPPVPublications.has(userId)) {
+      await ctx.reply('Нет данных для публикации');
+      return;
+    }
+
+    const publication = this.pendingPPVPublications.get(userId)!;
+
+    switch (timeChoice) {
+      case 'Сейчас':
+        await this.publishPPVImmediately(ctx, publication);
+        break;
+      case 'В 7:30':
+        await this.schedulePPVPublication(ctx, publication, 7, 30);
+        break;
+      case 'В 8:30':
+        await this.schedulePPVPublication(ctx, publication, 8, 30);
+        break;
+      case 'В 9:00':
+        await this.schedulePPVPublication(ctx, publication, 9, 0);
+        break;
+      default:
+        await ctx.reply('Неизвестный выбор времени');
+        return;
+    }
+
+    // Clear the stored data
+    this.pendingPPVPublications.delete(userId);
+  }
+
+  private async publishPPVImmediately(
+    ctx: Context,
+    publication: PendingPPVPublication,
+  ): Promise<void> {
+    await ctx.telegram.sendPhoto(
+      this.channelId,
+      publication.imageUrl.replace(/\/s/g, '/'),
+      {
+        caption: `Результаты ${publication.cleanedText} + запись шоу`,
+        reply_markup: publication.inlineKeyboard,
+      },
+    );
+
+    await ctx.reply(
+      'PPV результаты успешно опубликованы! 🎉',
+      this.keyboardService.getMainKeyboard(),
+    );
+  }
+
+  private async schedulePPVPublication(
+    ctx: Context,
+    publication: PendingPPVPublication,
+    hour: number,
+    minute: number,
+  ): Promise<void> {
+    const now = new Date();
+    const scheduledTime = new Date();
+    scheduledTime.setHours(hour, minute, 0, 0);
+
+    // If the scheduled time is in the past for today, schedule for tomorrow
+    if (scheduledTime <= now) {
+      scheduledTime.setDate(scheduledTime.getDate() + 1);
+    }
+
+    const delay = scheduledTime.getTime() - now.getTime();
+
+    // Store the timeout info for potential cleanup
+    const timeoutId = setTimeout(async () => {
+      try {
+        await ctx.telegram.sendPhoto(
+          this.channelId,
+          publication.imageUrl.replace(/\/s/g, '/'),
+          {
+            caption: `Результаты ${publication.cleanedText} + запись шоу`,
+            reply_markup: publication.inlineKeyboard,
+          },
+        );
+        console.log(
+          `Successfully sent scheduled PPV publication at ${scheduledTime}`,
+        );
+      } catch (error) {
+        console.error('Error sending scheduled PPV publication:', error);
+      }
+    }, delay);
+
+    const timeStr = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+    await ctx.reply(
+      `PPV результаты запланированы на ${timeStr} ${scheduledTime.toLocaleDateString()}. Публикация произойдет автоматически через ${Math.round(delay / 1000 / 60)} минут.`,
+      this.keyboardService.getMainKeyboard(),
+    );
+
+    console.log(
+      `PPV publication scheduled for ${scheduledTime}, timeout ID: ${timeoutId}`,
+    );
   }
 }

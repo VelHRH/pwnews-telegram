@@ -1,4 +1,4 @@
-import { Update, Ctx, Hears } from 'nestjs-telegraf';
+import { Update, Ctx, Hears, On } from 'nestjs-telegraf';
 import { Context } from '$/libs/interfaces/context.interface';
 import { NewsService } from './news.service';
 import { KeyboardService } from '../common/services/keyboard.service';
@@ -37,5 +37,41 @@ export class NewsUpdate {
   @Hears('❌ Нет')
   async onConfirmNo(@Ctx() ctx: Context) {
     await this.newsService.handleWeeklyConfirmation(ctx, false);
+  }
+
+  @Hears('Сейчас')
+  async onPPVNow(@Ctx() ctx: Context) {
+    await this.newsService.handlePPVTimeSelection(ctx, 'Сейчас');
+  }
+
+  @Hears('В 7:30')
+  async onPPV730(@Ctx() ctx: Context) {
+    await this.newsService.handlePPVTimeSelection(ctx, 'В 7:30');
+  }
+
+  @Hears('В 8:30')
+  async onPPV830(@Ctx() ctx: Context) {
+    await this.newsService.handlePPVTimeSelection(ctx, 'В 8:30');
+  }
+
+  @Hears('В 9:00')
+  async onPPV900(@Ctx() ctx: Context) {
+    await this.newsService.handlePPVTimeSelection(ctx, 'В 9:00');
+  }
+
+  @On('text')
+  async onTextMessage(@Ctx() ctx: Context) {
+    const text = (ctx.message as any)?.text;
+
+    if (!text) return;
+
+    // Check if the message contains a pwnews.net URL
+    const urlMatch = text.match(/(https?:\/\/(?:www\.)?pwnews\.net[^\s]+)/);
+
+    if (urlMatch) {
+      const url = urlMatch[1];
+      await ctx.reply(`Обрабатываю ссылку: ${url}`);
+      await this.newsService.publishPPVResults(ctx, url);
+    }
   }
 }
