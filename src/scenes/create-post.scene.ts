@@ -48,8 +48,6 @@ export class CreatePostScene {
 
     const response = await fetch('https://pwnews.net/news/1-0-23');
     const html = await response.text();
-    const linkMatch = html.match(/href="([^"]+)">Обзор /);
-    const link = linkMatch ? `pwnews.net${linkMatch[1]}` : text;
 
     const textMessageMatch = html.match(
       /<div class="textmessage">(.*?)<\/div>/s,

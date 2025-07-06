@@ -19,12 +19,23 @@ export class NewsUpdate {
     );
   }
 
-  @Hears('Опубликовать результаты')
+  @Hears('🎉 Опубликовать результаты PPV/спецшоу')
+  async onPublishPPVResults(@Ctx() ctx: Context) {
+    await this.newsService.publishPPVResults(ctx);
+  }
+
+  @Hears('Опубликовать результаты еженедельника')
   async onPublishResults(@Ctx() ctx: Context) {
-    await this.newsService.publishResults(ctx);
-    await ctx.reply(
-      'Пост успешно опубликован! 🎉',
-      this.keyboardService.getMainKeyboard(),
-    );
+    await this.newsService.publishWeeklyResults(ctx);
+  }
+
+  @Hears('✅ Да')
+  async onConfirmYes(@Ctx() ctx: Context) {
+    await this.newsService.handleWeeklyConfirmation(ctx, true);
+  }
+
+  @Hears('❌ Нет')
+  async onConfirmNo(@Ctx() ctx: Context) {
+    await this.newsService.handleWeeklyConfirmation(ctx, false);
   }
 }
