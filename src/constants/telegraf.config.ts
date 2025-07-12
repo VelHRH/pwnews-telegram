@@ -13,6 +13,10 @@ export const telegrafOptions = (): TelegrafModuleAsyncOptions => ({
     return {
       token,
       middlewares: [session()],
+      webhook: {
+        domain: configService.get<string>('WEBHOOK_DOMAIN'),
+        path: '/telegram',
+      },
     };
   },
   imports: [ConfigModule],

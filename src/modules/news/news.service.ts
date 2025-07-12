@@ -4,7 +4,7 @@ import { ConfigKeys } from '$/constants/app.constants';
 import { Context } from '$/libs/interfaces/context.interface';
 import { Markup } from 'telegraf';
 import { KeyboardService } from '../common/services/keyboard.service';
-import { WeeklyShow } from './constants/weekly-shows';
+import { WeeklyShow, WeeklyShowNames } from './constants/weekly-shows';
 import { reviewersNames } from './constants/reviewers';
 
 interface PendingPublication {
@@ -365,8 +365,7 @@ export class NewsService {
       title[1].toUpperCase().includes(show),
     );
 
-    const normalizedShow =
-      show.slice(0, 1).toUpperCase() + show.slice(1).toLowerCase();
+    const normalizedShow = WeeklyShowNames[show];
 
     const dateMatch = title[1].match(/(\d{2})\.(\d{2})\.(\d{4})/);
     if (!dateMatch) {

@@ -5,3 +5,11 @@ export enum WeeklyShow {
   COLLISION = 'COLLISION',
   NXT = 'NXT',
 }
+
+export const WeeklyShowNames = {
+  [WeeklyShow.RAW]: 'RAW',
+  [WeeklyShow.SMACKDOWN]: 'SmackDown',
+  [WeeklyShow.DYNAMITE]: 'Dynamite',
+  [WeeklyShow.COLLISION]: 'Collision',
+  [WeeklyShow.NXT]: 'NXT',
+};
