@@ -13,9 +13,26 @@ export class NewsUpdate {
   @Hears('📝 Опубликовать обзор')
   async onPublishReview(@Ctx() ctx: Context) {
     await this.newsService.publishReview(ctx);
-    await ctx.reply(
-      'Пост успешно опубликован! 🎉',
-      this.keyboardService.getMainKeyboard(),
+  }
+
+  @Hears('✅ Опубликовать обзор')
+  async onPublishReviewConfirm(@Ctx() ctx: Context) {
+    await this.newsService.handleReviewResponse(ctx, '✅ Опубликовать обзор');
+  }
+
+  @Hears('📝 Изменить текст обзора')
+  async onModifyReviewText(@Ctx() ctx: Context) {
+    await this.newsService.handleReviewResponse(
+      ctx,
+      '📝 Изменить текст обзора',
+    );
+  }
+
+  @Hears('❌ Отменить публикацию обзора')
+  async onCancelReview(@Ctx() ctx: Context) {
+    await this.newsService.handleReviewResponse(
+      ctx,
+      '❌ Отменить публикацию обзора',
     );
   }
 
@@ -72,6 +89,9 @@ export class NewsUpdate {
       const url = urlMatch[1];
       await ctx.reply(`Обрабатываю ссылку: ${url}`);
       await this.newsService.publishPPVResults(ctx, url);
+    } else {
+      // Handle potential review text modification
+      await this.newsService.handleReviewResponse(ctx, text);
     }
   }
 }

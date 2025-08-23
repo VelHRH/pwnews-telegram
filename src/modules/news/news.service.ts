@@ -37,6 +37,20 @@ interface PendingPPVPublication {
   };
 }
 
+interface PendingReview {
+  text: string;
+  imageUrl: string;
+  url: string;
+  inlineKeyboard: {
+    inline_keyboard: Array<
+      Array<{
+        text: string;
+        url: string;
+      }>
+    >;
+  };
+}
+
 @Injectable()
 export class NewsService {
   private readonly channelId: string;
@@ -45,6 +59,7 @@ export class NewsService {
     number,
     PendingPPVPublication
   >();
+  private readonly pendingReviews = new Map<number, PendingReview>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -123,10 +138,31 @@ export class NewsService {
       ? imageMatch[1]
       : `https://pwnews.net${imageMatch[1]}`;
 
-    await ctx.telegram.sendPhoto(this.channelId, imageUrl, {
+    // Store the review data for later use
+    if (ctx.from?.id) {
+      this.pendingReviews.set(ctx.from.id, {
+        text: finalTextMessage,
+        imageUrl,
+        url,
+        inlineKeyboard,
+      });
+    }
+
+    // Show preview to user
+    await ctx.sendPhoto(imageUrl, {
       caption: `${finalTextMessage} \n\n${url}`,
       reply_markup: inlineKeyboard,
     });
+
+    // Show options to publish or modify
+    await ctx.reply(
+      'Проверьте пост и выберите действие:',
+      Markup.keyboard([
+        ['✅ Опубликовать обзор'],
+        ['📝 Изменить текст обзора'],
+        ['❌ Отменить публикацию обзора'],
+      ]).resize(),
+    );
   }
 
   async publishPPVResults(ctx: Context, customUrl?: string): Promise<void> {
@@ -539,6 +575,74 @@ export class NewsService {
       'PPV результаты успешно опубликованы! 🎉',
       this.keyboardService.getMainKeyboard(),
     );
+  }
+
+  async handleReviewResponse(ctx: Context, response: string): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId || !this.pendingReviews.has(userId)) {
+      await ctx.reply(
+        'Нет данных для публикации. Пожалуйста, начните заново.',
+        this.keyboardService.getMainKeyboard(),
+      );
+      return;
+    }
+
+    const review = this.pendingReviews.get(userId)!;
+
+    switch (response) {
+      case '✅ Опубликовать обзор':
+        await ctx.telegram.sendPhoto(this.channelId, review.imageUrl, {
+          caption: `${review.text} \n\n${review.url}`,
+          reply_markup: review.inlineKeyboard,
+        });
+        await ctx.reply(
+          'Обзор успешно опубликован! 🎉',
+          this.keyboardService.getMainKeyboard(),
+        );
+        this.pendingReviews.delete(userId);
+        break;
+
+      case '📝 Изменить текст обзора':
+        await ctx.reply(
+          'Пожалуйста, введите новый текст для обзора:',
+          this.keyboardService.getCancelKeyboard(),
+        );
+        break;
+
+      case '❌ Отменить публикацию обзора':
+        await ctx.reply(
+          'Публикация отменена.',
+          this.keyboardService.getMainKeyboard(),
+        );
+        this.pendingReviews.delete(userId);
+        break;
+
+      default:
+        // Handle text input for review modification
+        if (this.pendingReviews.has(userId)) {
+          const review = this.pendingReviews.get(userId)!;
+          // Update the review text
+          review.text = response;
+          this.pendingReviews.set(userId, review);
+
+          // Show preview with new text
+          await ctx.sendPhoto(review.imageUrl, {
+            caption: `${response} \n\n${review.url}`,
+            reply_markup: review.inlineKeyboard,
+          });
+
+          // Show publish/modify options again
+          await ctx.reply(
+            'Проверьте обновленный пост и выберите действие:',
+            Markup.keyboard([
+              ['✅ Опубликовать обзор'],
+              ['📝 Изменить текст обзора'],
+              ['❌ Отменить публикацию обзора'],
+            ]).resize(),
+          );
+        }
+        break;
+    }
   }
 
   private async schedulePPVPublication(
