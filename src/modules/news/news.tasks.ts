@@ -22,7 +22,7 @@ export class NewsTasks {
     this.bot = new Telegraf(botToken);
   }
 
-  @Cron('0 30 7 * * *')
+  @Cron('0 30 4 * * *')
   async publishResultsDaily(): Promise<void> {
     this.logger.log('Starting daily results publication at 7:30 Moscow time');
 

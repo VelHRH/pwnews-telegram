@@ -150,7 +150,7 @@ export class NewsService {
 
     // Show preview to user
     await ctx.sendPhoto(imageUrl, {
-      caption: `${finalTextMessage} \n\n${url}`,
+      caption: `${finalTextMessage} \n\n${url.replace('https://', '')}`,
       reply_markup: inlineKeyboard,
     });
 
@@ -456,7 +456,7 @@ export class NewsService {
 
     if (postDate < oneDayAgo) {
       await ctx.sendPhoto(videoImageUrl.replace(/\/s/g, '/'), {
-        caption: `${text} \n\n• Результаты: ${url} \n• Смотреть: ${videoUrl}`,
+        caption: `${text} \n\n• Результаты: ${url.replace('https://', '')} \n• Смотреть: ${videoUrl.replace('https://', '')}`,
         reply_markup: inlineKeyboard,
       });
       await ctx.reply(
@@ -482,7 +482,7 @@ export class NewsService {
       this.channelId,
       videoImageUrl.replace(/\/s/g, '/'),
       {
-        caption: `${text} \n\n• Результаты: ${url} \n• Смотреть: ${videoUrl}`,
+        caption: `${text} \n\n• Результаты: ${url.replace('https://', '')} \n• Смотреть: ${videoUrl.replace('https://', '')}`,
         reply_markup: inlineKeyboard,
       },
     );
@@ -500,7 +500,7 @@ export class NewsService {
       const publication = this.pendingPublications.get(userId)!;
 
       await ctx.telegram.sendPhoto(this.channelId, publication.videoImageUrl, {
-        caption: `${publication.text} \n\n• Результаты: ${publication.url} \n• Смотреть: ${publication.videoUrl}`,
+        caption: `${publication.text} \n\n• Результаты: ${publication.url.replace('https://', '')} \n• Смотреть: ${publication.videoUrl.replace('https://', '')}`,
         reply_markup: publication.inlineKeyboard,
       });
 
