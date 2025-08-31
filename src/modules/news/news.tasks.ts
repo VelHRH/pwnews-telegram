@@ -1,26 +1,20 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { Telegraf } from 'telegraf';
 import { NewsService } from './news.service';
-import { ConfigKeys } from '$/constants/app.constants';
 import { Context } from '$/libs/interfaces/context.interface';
+import { BOT_NAME } from '$/bot.provider';
 
 @Injectable()
 export class NewsTasks {
   private readonly logger = new Logger(NewsTasks.name);
-  private readonly bot: Telegraf;
 
   constructor(
     private readonly newsService: NewsService,
     private readonly configService: ConfigService,
-  ) {
-    const botToken = this.configService.get(ConfigKeys.TELEGRAM_BOT_TOKEN);
-    if (!botToken) {
-      throw new Error('TELEGRAM_BOT_TOKEN is not configured');
-    }
-    this.bot = new Telegraf(botToken);
-  }
+    @Inject(BOT_NAME) private readonly bot: Telegraf,
+  ) {}
 
   @Cron('0 30 4 * * *')
   async publishResultsDaily(): Promise<void> {
@@ -39,6 +33,13 @@ export class NewsTasks {
       this.logger.log('Daily results publication completed successfully');
     } catch (error) {
       this.logger.error('Error in daily results publication:', error);
+
+      // При ошибке пробуем переподключить бота
+      try {
+        await this.bot.telegram.getMe();
+      } catch (e) {
+        this.logger.error('Failed to reconnect bot:', e);
+      }
     }
   }
 }
