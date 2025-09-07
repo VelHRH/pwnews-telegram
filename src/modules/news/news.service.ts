@@ -374,6 +374,18 @@ export class NewsService {
     }
   }
 
+  private escapeMarkdown(text: string): string {
+    return text.replace(/[[\](){}*_#+\-=|>.]/g, '\\$&');
+  }
+
+  private formatNewsCaption(
+    text: string,
+    url: string,
+    videoUrl: string,
+  ): string {
+    return `${this.escapeMarkdown(text)} \n\n• *Результаты:* ${this.escapeMarkdown(url.replace('https://', ''))} \n• *Смотреть:* ${this.escapeMarkdown(videoUrl.replace('https://', ''))}`;
+  }
+
   async publishWeeklyResults(ctx: Context): Promise<void> {
     if (!this.channelId) {
       await ctx.reply('Ошибка: ID канала не настроен');
@@ -482,7 +494,8 @@ export class NewsService {
       this.channelId,
       videoImageUrl.replace(/\/s/g, '/'),
       {
-        caption: `${text} \n\n• Результаты: ${url.replace('https://', '')} \n• Смотреть: ${videoUrl.replace('https://', '')}`,
+        caption: this.formatNewsCaption(text, url, videoUrl),
+        parse_mode: 'MarkdownV2',
         reply_markup: inlineKeyboard,
       },
     );
@@ -500,7 +513,12 @@ export class NewsService {
       const publication = this.pendingPublications.get(userId)!;
 
       await ctx.telegram.sendPhoto(this.channelId, publication.videoImageUrl, {
-        caption: `${publication.text} \n\n• Результаты: ${publication.url.replace('https://', '')} \n• Смотреть: ${publication.videoUrl.replace('https://', '')}`,
+        caption: this.formatNewsCaption(
+          publication.text,
+          publication.url,
+          publication.videoUrl,
+        ),
+        parse_mode: 'MarkdownV2',
         reply_markup: publication.inlineKeyboard,
       });
 
@@ -566,7 +584,8 @@ export class NewsService {
       this.channelId,
       publication.imageUrl.replace(/\/s/g, '/'),
       {
-        caption: `Результаты ${publication.cleanedText} + запись шоу`,
+        caption: `${this.escapeMarkdown(`Результаты ${publication.cleanedText} + запись шоу`)}`,
+        parse_mode: 'MarkdownV2',
         reply_markup: publication.inlineKeyboard,
       },
     );
@@ -669,7 +688,8 @@ export class NewsService {
           this.channelId,
           publication.imageUrl.replace(/\/s/g, '/'),
           {
-            caption: `Результаты ${publication.cleanedText} + запись шоу`,
+            caption: `${this.escapeMarkdown(`Результаты ${publication.cleanedText} + запись шоу`)}`,
+            parse_mode: 'MarkdownV2',
             reply_markup: publication.inlineKeyboard,
           },
         );
