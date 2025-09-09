@@ -20,6 +20,7 @@ export const BotProvider: Provider = {
     bot.catch((err, ctx) => {
       console.error(`Ошибка для ${ctx.updateType}`, err);
     });
+
     return bot;
   },
 };
