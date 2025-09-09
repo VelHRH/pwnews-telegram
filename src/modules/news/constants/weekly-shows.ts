@@ -7,7 +7,7 @@ export enum WeeklyShow {
 }
 
 export const WeeklyShowNames = {
-  [WeeklyShow.RAW]: 'RAW',
+  [WeeklyShow.RAW]: 'Raw',
   [WeeklyShow.SMACKDOWN]: 'SmackDown',
   [WeeklyShow.DYNAMITE]: 'Dynamite',
   [WeeklyShow.COLLISION]: 'Collision',
